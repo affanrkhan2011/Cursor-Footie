@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cursor Chase</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000000;
+            font-family: 'Inter', sans-serif;
+            cursor: none;
+            /* Hide default cursor to use custom circle */
+        }
+
+        /* Soccer Pitch Lines */
+        #game-area {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 80px;
+            right: 80px;
+            border-left: 3px solid rgba(255, 255, 255, 0.4);
+            border-right: 3px solid rgba(255, 255, 255, 0.4);
+            z-index: 1;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        .pitch-line {
+            position: absolute;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+
+        .center-line {
+            top: 0;
+            left: 50%;
+            width: 0;
+            height: 100%;
+            transform: translateX(-50%);
+        }
+
+        .center-circle {
+            top: 50%;
+            left: 50%;
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            background-color: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            border: none;
+            pointer-events: none;
+        }
+
+        .penalty-box-left {
+            top: 25%;
+            left: 0;
+            width: 15%;
+            height: 50%;
+            border-left: none;
+        }
+
+        .penalty-box-right {
+            top: 25%;
+            right: 0;
+            width: 15%;
+            height: 50%;
+            border-right: none;
+        }
+
+        /* The Chasers */
+        .enemy {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #ff4b4b, #991b1b);
+            border-radius: 50%;
+            box-shadow: 0 0 30px 10px rgba(239, 68, 68, 0.6);
+            pointer-events: none;
+            z-index: 10;
+            /* No transition on transform for smooth JS frame updates */
+        }
+
+        /* The Target (Now White Ball) */
+        #target {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 48px;
+            height: 48px;
+            background: radial-gradient(circle at 15px 15px, #ffffff, #e2e8f0 40%, #94a3b8 80%, #475569 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 20px 5px rgba(255, 255, 255, 0.4);
+            pointer-events: none;
+            display: none;
+            z-index: 9;
+            /* Pulse animation for the target */
+            animation: pulseTarget 2s infinite alternate;
+        }
+
+        @keyframes pulseTarget {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 20px 5px rgba(255, 255, 255, 0.4);
+            }
+
+            100% {
+                transform: scale(1.1);
+                box-shadow: 0 0 30px 10px rgba(255, 255, 255, 0.6);
+            }
+        }
+
+        /* Custom Cursor (Blue Ball) */
+        #custom-cursor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            border-radius: 50%;
+            box-shadow: 0 0 15px 5px rgba(59, 130, 246, 0.6);
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+        }
+
+        #goal {
+            position: absolute;
+            top: 30%;
+            right: 0;
+            width: 80px;
+            height: 40%;
+            border-top: 6px solid #ef4444;
+            /* Swap to Red */
+            border-bottom: 6px solid #ef4444;
+            border-right: 6px solid #ef4444;
+            background: repeating-linear-gradient(45deg,
+                    rgba(239, 68, 68, 0.1),
+                    rgba(239, 68, 68, 0.1) 10px,
+                    rgba(0, 0, 0, 0) 10px,
+                    rgba(0, 0, 0, 0) 20px);
+            box-sizing: border-box;
+            box-shadow: inset -10px 0 20px rgba(239, 68, 68, 0.2);
+            pointer-events: none;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #goal.active {
+            animation: pulseGoal 2s infinite alternate;
+        }
+
+        @keyframes pulseGoal {
+            0% {
+                box-shadow: -10px 0 20px rgba(239, 68, 68, 0.2);
+                background: linear-gradient(90deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.3));
+            }
+
+            100% {
+                box-shadow: -15px 0 30px rgba(239, 68, 68, 0.4);
+                background: linear-gradient(90deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.5));
+            }
+        }
+
+        #goal.active {
+            animation: pulseGoal 2s infinite alternate;
+        }
+
+        #defender-goal {
+            position: absolute;
+            top: 30%;
+            left: 0;
+            width: 80px;
+            height: 40%;
+            border-top: 6px solid #38bdf8;
+            /* Swap to Blue */
+            border-bottom: 6px solid #38bdf8;
+            border-left: 6px solid #38bdf8;
+            background: repeating-linear-gradient(-45deg,
+                    rgba(56, 189, 248, 0.1),
+                    rgba(56, 189, 248, 0.1) 10px,
+                    rgba(0, 0, 0, 0) 10px,
+                    rgba(0, 0, 0, 0) 20px);
+            box-sizing: border-box;
+            box-shadow: inset 10px 0 20px rgba(56, 189, 248, 0.2);
+            pointer-events: none;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+
+
+        @keyframes pulseDefenderGoal {
+            0% {
+                box-shadow: 10px 0 20px rgba(56, 189, 248, 0.2);
+                background: linear-gradient(-90deg, rgba(56, 189, 248, 0.1), rgba(56, 189, 248, 0.3));
+            }
+
+            100% {
+                box-shadow: 15px 0 30px rgba(56, 189, 248, 0.4);
+                background: linear-gradient(-90deg, rgba(56, 189, 248, 0.2), rgba(56, 189, 248, 0.5));
+            }
+        }
+
+        #defender-goal.active {
+            animation: pulseDefenderGoal 2s infinite alternate;
+        }
+
+
+
+
+
+        /* Goalkeepers */
+        .goalkeeper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 32px;
+            height: 32px;
+            background: radial-gradient(circle at 10px 10px, #fde047, #eab308 60%, #a16207 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 15px 5px rgba(234, 179, 8, 0.5);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #score-container {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #score-display {
+            font-size: 2rem;
+            font-weight: 900;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            padding: 15px 40px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #e2e8f0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        #timer-display {
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: inherit;
+            color: #94a3b8;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            padding: 8px 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            letter-spacing: 1px;
+        }
+
+        #score-display span.player {
+            color: #38bdf8;
+        }
+
+        #score-display span.defense {
+            color: #ef4444;
+        }
+
+        .menu {
+            background: rgba(15, 23, 42, 0.75);
+            padding: 40px 60px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+            text-align: center;
+            pointer-events: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .menu h1 {
+            margin-top: 0;
+            font-size: 3.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .menu p {
+            color: #94a3b8;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+            font-family: inherit;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        #final-score {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #e2e8f0;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+        }
+
+        #final-score span {
+            color: #22c55e;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-area">
+        <div class="pitch-line center-line"></div>
+        <div class="pitch-line center-circle"></div>
+        <div class="center-dot"></div>
+        <div class="pitch-line penalty-box-left"></div>
+        <div class="pitch-line penalty-box-right"></div>
+    </div>
+    <div id="defender-goal" class="active"></div>
+    <div id="goal" class="active"></div>
+    <div id="target"></div>
+    <div id="custom-cursor"></div>
+
+    <div id="ui-layer">
+        <div id="score-container">
+            <div id="score-display">
+                Player <span class="player">0</span> - <span class="defense">0</span> Defense
+            </div>
+            <div id="timer-display">00:00</div>
+        </div>
+
+        <div id="start-menu" class="menu">
+            <h1>Cursor Footie</h1>
+            <p>Score on the right, defend on the left. The game never ends!</p>
+            <button id="start-btn">Start Match</button>
+        </div>
+    </div>
+
+    <script>
+        const targetObj = document.getElementById('target');
+        const scoreContainer = document.getElementById('score-container');
+        const playerScoreSpan = document.querySelector('#score-display span.player');
+        const defenseScoreSpan = document.querySelector('#score-display span.defense');
+        const startMenu = document.getElementById('start-menu');
+        const startBtn = document.getElementById('start-btn');
+        const customCursor = document.getElementById('custom-cursor');
+
+        let isPlaying = false;
+        let playerScore = 0;
+        let defenseScore = 0;
+        let lastFrameTime = 0;
+        let gameStartTime = 0; // NEW Timer stat
+
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+        let prevMouseX = mouseX;
+        let prevMouseY = mouseY;
+        let cursorVX = 0;
+        let cursorVY = 0;
+
+        let enemies = [];
+        let goalkeepers = []; // NEW
+
+        let targetX = 0;
+        let targetY = 0;
+        let targetVX = 0;
+        let targetVY = 0;
+
+        let animationFrameId;
+
+        const enemyRadius = 24; // half of 48px
+        const hitRadius = 20;   // slightly forgiving hitbox
+
+        const targetRadius = 24; // Increased target size
+        const targetHitRadius = 45; // Increased hit box for passing/striking target
+
+        // Difficulty / Physics controls
+        const baseSpeed = 0.5;            // base acceleration
+        const speedMultiplier = 0.05;     // acceleration increase per second survived
+        const friction = 0.95;            // general friction for objects
+        const strikeForceMultiplier = 1.2; // How hard the cursor hits the ball
+
+        // Goal & Goal Box Bounds
+        let goalTop = window.innerHeight * 0.3;      // 30% top
+        let goalBottom = window.innerHeight * 0.7;   // 40% height -> 70% bottom
+        let goalLeftEdge = window.innerWidth - 80;
+
+        let goalBoxTop = window.innerHeight * 0.2;   // 20% top
+        let goalBoxBottom = window.innerHeight * 0.8; // 60% height -> 80% bottom
+
+        // Right Goal Box
+        let goalBoxRightEdge = window.innerWidth - 80;
+        let goalBoxLeftEdge = window.innerWidth - 300; // 80 + 220 width
+
+        // Left Goal Box
+        let leftGoalBoxLeftEdge = 80;
+        let leftGoalBoxRightEdge = 300; // 80 + 220 width
+
+        let defenderGoalTop = window.innerHeight * 0.3; // 30% top
+        let defenderGoalBottom = window.innerHeight * 0.7; // 40% height
+        let defenderGoalRightEdge = 80;
+
+        window.addEventListener('resize', () => {
+            goalTop = window.innerHeight * 0.3;
+            goalBottom = window.innerHeight * 0.7;
+            goalLeftEdge = window.innerWidth - 80;
+
+            goalBoxTop = window.innerHeight * 0.2;
+            goalBoxBottom = window.innerHeight * 0.8;
+            goalBoxRightEdge = window.innerWidth - 80;
+            goalBoxLeftEdge = window.innerWidth - 300;
+
+            leftGoalBoxLeftEdge = 80;
+            leftGoalBoxRightEdge = 300;
+
+            defenderGoalTop = window.innerHeight * 0.3;
+            defenderGoalBottom = window.innerHeight * 0.7;
+            defenderGoalRightEdge = 80;
+        });
+
+        // Track cursor position
+        document.addEventListener('mousemove', (e) => {
+            // Update previous before setting new
+            prevMouseX = mouseX;
+            prevMouseY = mouseY;
+
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+
+            // Move our custom cursor ball
+            customCursor.style.left = `${mouseX}px`;
+            customCursor.style.top = `${mouseY}px`;
+
+            // Calculate instant velocity
+            cursorVX = mouseX - prevMouseX;
+            cursorVY = mouseY - prevMouseY;
+        });
+
+
+
+        startBtn.addEventListener('click', startGame);
+
+        function spawnEnemy() {
+            // Pick a random spot inside the field, far from cursor
+            let startX, startY;
+
+            for (let i = 0; i < 100; i++) {
+                startX = defenderGoalRightEdge + 50 + Math.random() * (goalLeftEdge - defenderGoalRightEdge - 100);
+                startY = 50 + Math.random() * (window.innerHeight - 100);
+                if (Math.abs(startX - mouseX) > 200 && Math.abs(startY - mouseY) > 200) {
+                    break;
+                }
+            }
+
+            // Create DOM element
+            const el = document.createElement('div');
+            el.className = 'enemy';
+            document.body.appendChild(el);
+
+            const newEnemy = {
+                x: startX,
+                y: startY,
+                vx: 0,
+                vy: 0,
+                element: el
+            };
+
+            enemies.push(newEnemy);
+            updateEnemyPos(newEnemy);
+        }
+
+        function spawnTarget() {
+            const margin = 100;
+            const playableWidth = goalLeftEdge - defenderGoalRightEdge - 300 - (margin * 2); // 300 for goalBox
+            const playableHeight = window.innerHeight - (margin * 2);
+
+            // Generate random position
+            targetX = defenderGoalRightEdge + margin + Math.random() * playableWidth;
+            targetY = margin + Math.random() * playableHeight;
+
+            const distToMouse = Math.sqrt(Math.pow(targetX - mouseX, 2) + Math.pow(targetY - mouseY, 2));
+            if (distToMouse < targetRadius * 4) {
+                targetX = defenderGoalRightEdge + margin + Math.random() * playableWidth;
+                targetY = margin + Math.random() * playableHeight;
+            }
+
+            targetVX = 0;
+            targetVY = 0;
+            updateTargetPos();
+        }
+
+        function createGoalkeepers() {
+            // Remove existing
+            goalkeepers.forEach(g => g.element.remove());
+            goalkeepers = [];
+
+            // GK 1 (Left / Defender Side)
+            const gk1El = document.createElement('div');
+            gk1El.className = 'goalkeeper';
+            document.body.appendChild(gk1El);
+            goalkeepers.push({
+                x: leftGoalBoxLeftEdge + 40,
+                y: window.innerHeight / 2,
+                minX: leftGoalBoxLeftEdge,
+                maxX: leftGoalBoxRightEdge,
+                minY: goalBoxTop + 20,
+                maxY: goalBoxBottom - 20,
+                element: gk1El,
+                radius: 16
+            });
+
+            // GK 2 (Right / Player Side)
+            const gk2El = document.createElement('div');
+            gk2El.className = 'goalkeeper';
+            document.body.appendChild(gk2El);
+            goalkeepers.push({
+                x: goalBoxRightEdge - 40,
+                y: window.innerHeight / 2,
+                minX: goalBoxLeftEdge,
+                maxX: goalBoxRightEdge,
+                minY: goalBoxTop + 20,
+                maxY: goalBoxBottom - 20,
+                element: gk2El,
+                radius: 16
+            });
+        }
+
+        function updateEnemyPos(enemy) {
+            enemy.element.style.transform = `translate(${enemy.x - enemyRadius}px, ${enemy.y - enemyRadius}px)`;
+        }
+
+        function updateTargetPos() {
+            // Include transform styling here for simpler management although we could separate it
+            targetObj.style.width = '48px';
+            targetObj.style.height = '48px';
+            targetObj.style.left = `${targetX - targetRadius}px`;
+            targetObj.style.top = `${targetY - targetRadius}px`;
+        }
+
+        function resetPositions() {
+            // Target at Center dot
+            targetX = window.innerWidth / 2;
+            targetY = window.innerHeight / 2;
+            targetVX = 0;
+            targetVY = 0;
+            updateTargetPos();
+
+            // Recenter Cursor
+            mouseX = window.innerWidth * 0.75;
+            mouseY = window.innerHeight / 2;
+            prevMouseX = mouseX;
+            prevMouseY = mouseY;
+            cursorVX = 0;
+            cursorVY = 0;
+            customCursor.style.left = `${mouseX}px`;
+            customCursor.style.top = `${mouseY}px`;
+
+            // Enemies to Left half
+            for (let i = 0; i < enemies.length; i++) {
+                enemies[i].x = defenderGoalRightEdge + 50 + Math.random() * (window.innerWidth / 2 - defenderGoalRightEdge - 100);
+                enemies[i].y = 100 + Math.random() * (window.innerHeight - 200);
+                enemies[i].vx = 0;
+                enemies[i].vy = 0;
+            }
+
+            // Recreate GKs so they are back to center
+            createGoalkeepers();
+        }
+
+        function startGame() {
+            startMenu.style.display = 'none';
+            scoreContainer.style.display = 'block';
+            targetObj.style.display = 'block';
+
+            // Clean up old enemies if any
+            enemies.forEach(e => e.element.remove());
+            enemies = [];
+
+            // Reset state
+            isPlaying = true;
+            playerScore = 0;
+            defenseScore = 0;
+            lastFrameTime = Date.now();
+            gameStartTime = Date.now();
+
+            playerScoreSpan.textContent = '0';
+            defenseScoreSpan.textContent = '0';
+
+            spawnEnemy();
+            resetPositions();
+
+            // Start loop
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!isPlaying) return;
+
+            const now = Date.now();
+            const dt = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+
+            // Timer display update
+            let elapsedTotalSeconds = Math.floor((now - gameStartTime) / 1000);
+            let minutes = Math.floor(elapsedTotalSeconds / 60);
+            let seconds = elapsedTotalSeconds % 60;
+            document.getElementById('timer-display').textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            // --- PHYSICS UPDATES ---
+
+            // 1. Blue Target Physics
+
+            // Limit max speed of the ball
+            const maxBallSpeed = 30; // Max pixels per frame
+            const currentBallSpeedSq = targetVX * targetVX + targetVY * targetVY;
+            if (currentBallSpeedSq > maxBallSpeed * maxBallSpeed) {
+                const currentBallSpeed = Math.sqrt(currentBallSpeedSq);
+                targetVX = (targetVX / currentBallSpeed) * maxBallSpeed;
+                targetVY = (targetVY / currentBallSpeed) * maxBallSpeed;
+            }
+
+            targetX += targetVX;
+            targetY += targetVY;
+
+            // Apply friction to target
+            targetVX *= friction;
+            targetVY *= friction;
+
+            // Target Vertical Wall Collisions (Bounce)
+            if (targetY - targetRadius < 0) {
+                targetY = targetRadius;
+                targetVY *= -0.8;
+            }
+            if (targetY + targetRadius > window.innerHeight) {
+                targetY = window.innerHeight - targetRadius;
+                targetVY *= -0.8;
+            }
+
+            // Target vs Goalkeeper Collision
+            for (let gk of goalkeepers) {
+                const dxGK = gk.x - targetX;
+                const dyGK = gk.y - targetY;
+                const distGK = Math.sqrt(dxGK * dxGK + dyGK * dyGK);
+
+                if (distGK < (gk.radius + targetRadius)) {
+                    // Massive bounce off the keeper (block)
+                    const overlap = (gk.radius + targetRadius) - distGK;
+
+                    targetX -= (dxGK / distGK) * overlap;
+                    targetY -= (dyGK / distGK) * overlap;
+
+                    // Deflect away VERY powerfully
+                    targetVX = -(dxGK / distGK) * 35;
+                    targetVY = -(dyGK / distGK) * 35;
+                }
+            }
+
+            // Target Horizontal Wall / Goal Collisions
+            if (targetX - targetRadius < defenderGoalRightEdge) {
+                if (targetY > defenderGoalTop && targetY < defenderGoalBottom) {
+                    // Inside Defense Goal
+                    if (targetX - targetRadius <= 0) {
+                        defenseScore++;
+                        defenseScoreSpan.textContent = defenseScore;
+                        if (enemies.length > 1) {
+                            let removed = enemies.shift();
+                            removed.element.remove();
+                        }
+                        resetPositions();
+                    } else {
+                        // Bounce off goal top/bottom bars
+                        if (targetY - targetRadius < defenderGoalTop) {
+                            targetY = defenderGoalTop + targetRadius;
+                            targetVY *= -0.8;
+                        } else if (targetY + targetRadius > defenderGoalBottom) {
+                            targetY = defenderGoalBottom - targetRadius;
+                            targetVY *= -0.8;
+                        }
+                    }
+                } else {
+                    targetX = defenderGoalRightEdge + targetRadius;
+                    targetVX *= -0.8;
+                }
+            } else if (targetX + targetRadius > goalLeftEdge) {
+                if (targetY > goalTop && targetY < goalBottom) {
+                    // Inside Player Goal
+                    if (targetX + targetRadius >= window.innerWidth) {
+                        playerScore++;
+                        playerScoreSpan.textContent = playerScore;
+                        spawnEnemy();
+                        resetPositions();
+                    } else {
+                        // Bounce off goal top/bottom bars
+                        if (targetY - targetRadius < goalTop) {
+                            targetY = goalTop + targetRadius;
+                            targetVY *= -0.8;
+                        } else if (targetY + targetRadius > goalBottom) {
+                            targetY = goalBottom - targetRadius;
+                            targetVY *= -0.8;
+                        }
+                    }
+                } else {
+                    targetX = goalLeftEdge - targetRadius;
+                    targetVX *= -0.8;
+                }
+            }
+
+            // 2. Cursor striking target
+            const dxCursorTarget = mouseX - targetX;
+            const dyCursorTarget = mouseY - targetY;
+            const distCursorTarget = Math.sqrt(dxCursorTarget * dxCursorTarget + dyCursorTarget * dyCursorTarget);
+
+            if (distCursorTarget < targetHitRadius) {
+                // Add cursor velocity to target velocity
+                targetVX += cursorVX * strikeForceMultiplier;
+                targetVY += cursorVY * strikeForceMultiplier;
+
+                // Push target slightly out to prevent sticking
+                const pushOut = (targetHitRadius - distCursorTarget);
+                if (distCursorTarget > 0) {
+                    targetX -= (dxCursorTarget / distCursorTarget) * pushOut;
+                    targetY -= (dyCursorTarget / distCursorTarget) * pushOut;
+                }
+            }
+
+            // 3. Enemy AI & Physics
+            const currentAccel = baseSpeed;
+
+            // Find distances for all enemies
+            let enemyDistances = [];
+            for (let i = 0; i < enemies.length; i++) {
+                let dx = enemies[i].x - targetX;
+                let dy = enemies[i].y - targetY;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                enemyDistances.push({ index: i, dist: dist });
+            }
+            // Sort by distance
+            enemyDistances.sort((a, b) => a.dist - b.dist);
+
+            // Only Top 1 is chaser
+            let chaserIndex = -1;
+            if (enemyDistances.length > 0) chaserIndex = enemyDistances[0].index;
+
+            for (let i = 0; i < enemies.length; i++) {
+                let enemy = enemies[i];
+                let isChaser = (i === chaserIndex);
+
+                // AI: Chase Ball instead of Player
+                let dxEnemyTarget = targetX - enemy.x;
+                let dyEnemyTarget = targetY - enemy.y;
+                let distEnemyToBall = Math.sqrt(dxEnemyTarget * dxEnemyTarget + dyEnemyTarget * dyEnemyTarget);
+
+                if (distEnemyToBall > 0) {
+                    let accelX = 0;
+                    let accelY = 0;
+
+                    if (isChaser) {
+                        accelX = (dxEnemyTarget / distEnemyToBall) * currentAccel;
+                        accelY = (dyEnemyTarget / distEnemyToBall) * currentAccel;
+                    } else {
+                        // Non-chasers spread out - keep away from the ball and find open space
+                        let targetDist = 400; // Keep very far away to open up passing lanes
+                        let distDiff = distEnemyToBall - targetDist;
+                        accelX = (dxEnemyTarget / distEnemyToBall) * currentAccel * Math.sign(distDiff) * 0.3;
+                        accelY = (dyEnemyTarget / distEnemyToBall) * currentAccel * Math.sign(distDiff) * 0.3;
+                    }
+
+                    // Spread out from each other heavily to prevent clustering
+                    for (let j = 0; j < enemies.length; j++) {
+                        if (i === j) continue;
+                        let otherE = enemies[j];
+                        let dxAvoid = enemy.x - otherE.x;
+                        let dyAvoid = enemy.y - otherE.y;
+                        let distAvoid = Math.sqrt(dxAvoid * dxAvoid + dyAvoid * dyAvoid);
+
+                        let avoidRadius = 250;
+                        if (distAvoid > 0 && distAvoid < avoidRadius) {
+                            let avoidForce = 0.6; // strong push away
+                            accelX += (dxAvoid / distAvoid) * avoidForce;
+                            accelY += (dyAvoid / distAvoid) * avoidForce;
+                        }
+                    }
+
+                    enemy.vx += accelX;
+                    enemy.vy += accelY;
+                }
+
+                enemy.vx *= friction;
+                enemy.vy *= friction;
+
+                enemy.x += enemy.vx;
+                enemy.y += enemy.vy;
+
+                // Enemy Field Bounds
+                if (enemy.x - enemyRadius < defenderGoalRightEdge) {
+                    enemy.x = defenderGoalRightEdge + enemyRadius;
+                    enemy.vx *= -0.5;
+                } else if (enemy.x + enemyRadius > goalLeftEdge) {
+                    enemy.x = goalLeftEdge - enemyRadius;
+                    enemy.vx *= -0.5;
+                }
+
+                if (enemy.y - enemyRadius < 0) {
+                    enemy.y = enemyRadius;
+                    enemy.vy *= -0.5;
+                } else if (enemy.y + enemyRadius > window.innerHeight) {
+                    enemy.y = window.innerHeight - enemyRadius;
+                    enemy.vy *= -0.5;
+                }
+
+                // Goal Box Collision (Keep enemies out)
+                if (enemy.x + enemyRadius > goalBoxLeftEdge && enemy.y > goalBoxTop && enemy.y < goalBoxBottom) {
+                    enemy.x = goalBoxLeftEdge - enemyRadius;
+                    enemy.vx *= -1; // Bounce off the invisible wall
+                }
+
+                // Enemy vs Target (Ball) - Dribbling and Passing mechanic
+                const dxEnemyBall = enemy.x - targetX;
+                const dyEnemyBall = enemy.y - targetY;
+                const distEnemyBall = Math.sqrt(dxEnemyBall * dxEnemyBall + dyEnemyBall * dyEnemyBall);
+
+                if (distEnemyBall < (enemyRadius + targetRadius)) {
+                    // Decide whether to dribble, pass, or SHOOT
+
+                    let passVectorX = 0;
+                    let passVectorY = 0;
+                    let pushForce = 0;
+
+                    let distEnemyPlayer = Math.sqrt(Math.pow(enemy.x - mouseX, 2) + Math.pow(enemy.y - mouseY, 2));
+                    let isPassing = distEnemyPlayer < 250 && enemies.length > 1; // 250px pressure radius
+
+                    // Check for SHOOTING (Enemy is in attacking half and close enough to goal)
+                    let isShooting = false;
+                    if (enemy.x < window.innerWidth / 2) { // Past half way line to the Left
+                        // If they are deep enough in attacking half they will just shoot it
+                        if (enemy.x < window.innerWidth * 0.35) {
+                            isShooting = true;
+                            isPassing = false;
+                        }
+                    }
+
+                    if (isShooting) {
+                        // Shoot directly at the Defender's Goal Center (Left Goal)
+                        let goalCenterPitchX = defenderGoalRightEdge;
+                        let goalCenterPitchY = window.innerHeight / 2;
+
+                        let dxShoot = goalCenterPitchX - targetX;
+                        let dyShoot = goalCenterPitchY - targetY;
+                        let distShoot = Math.sqrt(dxShoot * dxShoot + dyShoot * dyShoot);
+
+                        if (distShoot > 0) {
+                            passVectorX = (dxShoot / distShoot);
+                            passVectorY = (dyShoot / distShoot);
+
+                            // Let the shot trail off slightly up or down to make it realistic
+                            passVectorY += (Math.random() - 0.5) * 0.2;
+
+                            // Normalize again
+                            let mag = Math.sqrt(passVectorX * passVectorX + passVectorY * passVectorY);
+                            passVectorX /= mag;
+                            passVectorY /= mag;
+                        }
+                        pushForce = 22; // Massive shot power!
+                    } else if (isPassing) {
+                        // Pass to the teammate closest to the LEFT goal (Attacking)
+                        let targetTeammate = null;
+                        let minTargetX = enemy.x; // Pass forward (leftwards)
+
+                        for (let j = 0; j < enemies.length; j++) {
+                            if (i === j) continue;
+                            let teammate = enemies[j];
+
+                            if (teammate.x < minTargetX) {
+                                minTargetX = teammate.x;
+                                targetTeammate = teammate;
+                            }
+                        }
+
+                        if (targetTeammate) {
+                            // Pass towards teammate
+                            let dxPass = targetTeammate.x - targetX;
+                            let dyPass = targetTeammate.y - targetY;
+                            let distPass = Math.sqrt(dxPass * dxPass + dyPass * dyPass);
+                            if (distPass > 0) {
+                                passVectorX = (dxPass / distPass);
+                                passVectorY = (dyPass / distPass);
+                            }
+                            pushForce = 15; // Extremely Strong and Fast pass!
+                        } else {
+                            isPassing = false; // Fall back to dribble
+                        }
+                    }
+
+                    if (!isPassing && !isShooting) {
+                        // Dribble: Target the center of the left goal
+                        let goalCenterPitch = window.innerHeight / 2;
+                        let dxGoal = defenderGoalRightEdge - targetX;
+                        let dyGoal = goalCenterPitch - targetY;
+                        let distGoal = Math.sqrt(dxGoal * dxGoal + dyGoal * dyGoal);
+
+                        if (distGoal > 0) {
+                            passVectorX = dxGoal / distGoal;
+                            passVectorY = dyGoal / distGoal;
+
+                            // Slight bias away from player if they are close
+                            let distPlayer = Math.sqrt(Math.pow(targetX - mouseX, 2) + Math.pow(targetY - mouseY, 2));
+                            if (distPlayer < 200) {
+                                passVectorX += (targetX - mouseX) / distPlayer * 0.5;
+                                passVectorY += (targetY - mouseY) / distPlayer * 0.5;
+                            }
+                        } else {
+                            // Default bump towards left
+                            passVectorX = -1;
+                            passVectorY = 0;
+                        }
+
+                        // Add some randomness so they can dribble around unpredictably
+                        passVectorX += (Math.random() - 0.5) * 0.5;
+                        passVectorY += (Math.random() - 0.5) * 0.5;
+
+                        // Normalize
+                        let mag = Math.sqrt(passVectorX * passVectorX + passVectorY * passVectorY);
+                        if (mag > 0) {
+                            passVectorX /= mag;
+                            passVectorY /= mag;
+                        }
+
+                        pushForce = 2.5; // Small dribble touch
+                    }
+
+                    targetVX += passVectorX * pushForce;
+                    targetVY += passVectorY * pushForce;
+
+                    // Positional correction so they don't get stuck inside the ball
+                    const overlap = (enemyRadius + targetRadius) - distEnemyBall;
+                    if (distEnemyBall > 0) {
+                        targetX -= (dxEnemyBall / distEnemyBall) * overlap;
+                        targetY -= (dyEnemyBall / distEnemyBall) * overlap;
+
+                        // Bounce enemy back slightly
+                        enemy.x += (dxEnemyBall / distEnemyBall) * overlap * 0.2;
+                        enemy.y += (dyEnemyBall / distEnemyBall) * overlap * 0.2;
+                        enemy.vx *= -0.2;
+                        enemy.vy *= -0.2;
+                    }
+                }
+
+                // Enemy vs Enemy Collision (Prevent Clustering)
+                for (let j = i + 1; j < enemies.length; j++) {
+                    let otherEnemy = enemies[j];
+                    const dxEE = enemy.x - otherEnemy.x;
+                    const dyEE = enemy.y - otherEnemy.y;
+                    const distEE = Math.sqrt(dxEE * dxEE + dyEE * dyEE);
+
+                    if (distEE < enemyRadius * 2) {
+                        const overlap = (enemyRadius * 2) - distEE;
+                        const pushForce = 0.5;
+                        if (distEE > 0) {
+                            const pushX = (dxEE / distEE) * overlap * pushForce;
+                            const pushY = (dyEE / distEE) * overlap * pushForce;
+
+                            enemy.x += pushX;
+                            enemy.y += pushY;
+                            otherEnemy.x -= pushX;
+                            otherEnemy.y -= pushY;
+
+                            // Adjust velocities lightly to create a bounce effect
+                            enemy.vx += pushX * 0.1;
+                            enemy.vy += pushY * 0.1;
+                            otherEnemy.vx -= pushX * 0.1;
+                            otherEnemy.vy -= pushY * 0.1;
+                        }
+                    }
+                }
+
+                updateEnemyPos(enemy);
+            }
+
+            // Update Goalkeepers
+            for (let gk of goalkeepers) {
+                // Determine which goal this GK is defending
+                let isDefendingLeft = gk.x < window.innerWidth / 2;
+
+                // Track the ball only if it's in their half of the pitch to prevent erratic behavior
+                let ballInHalf = isDefendingLeft ? (targetX < window.innerWidth / 2) : (targetX > window.innerWidth / 2);
+                let gkTargetY = window.innerHeight / 2; // Default to center
+                let gkTargetX = isDefendingLeft ? (leftGoalBoxLeftEdge + 40) : (goalBoxRightEdge - 40); // Base position
+
+                if (ballInHalf) {
+                    // Try to follow the Y position of the ball to block shots, but anticipate slightly based on ball velocity
+                    gkTargetY = targetY + (targetVY * 15);
+
+                    // Slightly come off the line to cut angles if ball is close
+                    let dxFromBall = targetX - gk.x;
+                    if (Math.abs(dxFromBall) < 250) {
+                        gkTargetX += Math.sign(dxFromBall) * 50;
+                    }
+                }
+
+                // Move GK smoothly
+                let maxGKSpeedX = 4;
+                let maxGKSpeedY = 7;
+
+                let dxGK = gkTargetX - gk.x;
+                let dyGK = gkTargetY - gk.y;
+
+                if (Math.abs(dxGK) > maxGKSpeedX) {
+                    gk.x += Math.sign(dxGK) * maxGKSpeedX;
+                } else {
+                    gk.x += dxGK;
+                }
+
+                if (Math.abs(dyGK) > maxGKSpeedY) {
+                    gk.y += Math.sign(dyGK) * maxGKSpeedY;
+                } else {
+                    gk.y += dyGK;
+                }
+
+                // Clamping to penalty box limits (X and Y)
+                if (gk.x < gk.minX) gk.x = gk.minX;
+                if (gk.x > gk.maxX) gk.x = gk.maxX;
+
+                if (gk.y < gk.minY) {
+                    gk.y = gk.minY;
+                } else if (gk.y > gk.maxY) {
+                    gk.y = gk.maxY;
+                }
+                gk.element.style.transform = `translate(${gk.x - gk.radius}px, ${gk.y - gk.radius}px)`;
+            }
+
+            // Fade cursor velocity so we don't apply old velocity if mouse stops moving
+            cursorVX *= 0.5;
+            cursorVY *= 0.5;
+
+            updateTargetPos();
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+    </script>
+</body>
+
+</html>
